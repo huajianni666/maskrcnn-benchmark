@@ -134,6 +134,8 @@ _C.MODEL.RPN.MIN_SIZE = 0
 # all FPN levels
 _C.MODEL.RPN.FPN_POST_NMS_TOP_N_TRAIN = 2000
 _C.MODEL.RPN.FPN_POST_NMS_TOP_N_TEST = 2000
+# Custom rpn head, empty to use default conv or separable conv
+_C.MODEL.RPN.RPN_HEAD = "SingleConvRPNHead"
 
 
 # ---------------------------------------------------------------------------- #
@@ -192,6 +194,9 @@ _C.MODEL.ROI_MASK_HEAD.MLP_HEAD_DIM = 1024
 _C.MODEL.ROI_MASK_HEAD.CONV_LAYERS = (256, 256, 256, 256)
 _C.MODEL.ROI_MASK_HEAD.RESOLUTION = 14
 _C.MODEL.ROI_MASK_HEAD.SHARE_BOX_FEATURE_EXTRACTOR = True
+# Whether or not resize and translate masks to the input image.
+_C.MODEL.ROI_MASK_HEAD.POSTPROCESS_MASKS = False
+_C.MODEL.ROI_MASK_HEAD.POSTPROCESS_MASKS_THRESHOLD = 0.5
 
 # ---------------------------------------------------------------------------- #
 # ResNe[X]t options (ResNets = {ResNet, ResNeXt}
