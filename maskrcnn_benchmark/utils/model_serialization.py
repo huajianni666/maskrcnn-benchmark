@@ -165,6 +165,8 @@ def replace_prefix_if_present(state_dict, prefix, replace):
         else:
             if('roi_heads.box.' in key):
                 stripped_state_dict[key.replace(prefix,'')] = value
+            elif('roi_heads.mask.' in key):
+                stripped_state_dict[key.replace(prefix,'')] = value 
             else:
                 stripped_state_dict[key.replace(prefix, replace)] = value
     return stripped_state_dict
@@ -185,8 +187,10 @@ def load_initial_state_dict(model, teacher_loaded_state_dict, student_loaded_sta
     # if the state_dict comes from a model that was wrapped in a
     # DataParallel or DistributedDataParallel during serialization,
     # remove the "module" prefix before performing the matching
+    pdb.set_trace()
     teacher_loaded_state_dict = replace_prefix_if_present(teacher_loaded_state_dict, prefix="module.", replace="teacher_")
     student_loaded_state_dict = replace_prefix_if_present(student_loaded_state_dict, prefix="module.", replace="student_")
+    pdb.set_trace()
     align_and_update_initial_state_dicts(model_state_dict, teacher_loaded_state_dict, student_loaded_state_dict)
     # use strict loading
     model.load_state_dict(model_state_dict)
