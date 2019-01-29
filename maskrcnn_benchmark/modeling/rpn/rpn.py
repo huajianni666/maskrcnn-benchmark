@@ -2,7 +2,7 @@
 import torch
 import torch.nn.functional as F
 from torch import nn
-
+import pdb
 from maskrcnn_benchmark.modeling import registry
 from maskrcnn_benchmark.modeling.box_coder import BoxCoder
 from .loss import make_rpn_loss_evaluator
@@ -78,7 +78,7 @@ class RPNModule(torch.nn.Module):
         self.box_selector_test = box_selector_test
         self.loss_evaluator = loss_evaluator
 
-    def forward(self, images, features, targets=None):
+    def forward(self, images, features, targets=None,train=True):
         """
         Arguments:
             images (ImageList): images for which we want to compute the predictions
@@ -93,10 +93,11 @@ class RPNModule(torch.nn.Module):
             losses (dict[Tensor]): the losses for the model during training. During
                 testing, it is an empty dict.
         """
+        #pdb.set_trace()
         objectness, rpn_box_regression = self.head(features)
         anchors = self.anchor_generator(images, features)
 
-        if self.training:
+        if train:
             return self._forward_train(anchors, objectness, rpn_box_regression, targets)
         else:
             return self._forward_test(anchors, objectness, rpn_box_regression)
@@ -122,7 +123,7 @@ class RPNModule(torch.nn.Module):
             "loss_objectness": loss_objectness,
             "loss_rpn_box_reg": loss_rpn_box_reg,
         }
-        return boxes, losses
+        return boxes, anchors, objectness, rpn_box_regression, losses
 
     def _forward_test(self, anchors, objectness, rpn_box_regression):
         boxes = self.box_selector_test(anchors, objectness, rpn_box_regression)
@@ -135,7 +136,7 @@ class RPNModule(torch.nn.Module):
                 box.get_field("objectness").sort(descending=True)[1] for box in boxes
             ]
             boxes = [box[ind] for box, ind in zip(boxes, inds)]
-        return boxes, {}
+        return boxes, anchors, objectness, rpn_box_regression, {}
 
 
 def build_rpn(cfg):

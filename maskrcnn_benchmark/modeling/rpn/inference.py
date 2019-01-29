@@ -1,6 +1,6 @@
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
 import torch
-
+import pdb
 from maskrcnn_benchmark.modeling.box_coder import BoxCoder
 from maskrcnn_benchmark.structures.bounding_box import BoxList
 from maskrcnn_benchmark.structures.boxlist_ops import cat_boxlist
@@ -131,6 +131,7 @@ class RPNPostProcessor(torch.nn.Module):
             boxlists (list[BoxList]): the post-processed anchors, after
                 applying box decoding and NMS
         """
+        #pdb.set_trace()
         sampled_boxes = []
         num_levels = len(objectness)
         anchors = list(zip(*anchors))

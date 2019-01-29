@@ -11,7 +11,7 @@ Custom implementations may be written in user code and hooked in via the
 `register_*` functions.
 """
 from collections import namedtuple
-
+import pdb
 import torch
 import torch.nn.functional as F
 from torch import nn
@@ -38,6 +38,11 @@ StageSpec = namedtuple(
 ResNet50StagesTo5 = tuple(
     StageSpec(index=i, block_count=c, return_features=r)
     for (i, c, r) in ((1, 3, False), (2, 4, False), (3, 6, False), (4, 3, True))
+)
+# ResNet-18 up to stage 4 (including all stages)
+ResNet18FPNStagesTo5 = tuple(
+    StageSpec(index=i, block_count=c, return_features=r)
+    for (i, c, r) in ((1, 2, True), (2, 2, True), (3, 2, True), (4, 2, True))
 )
 # ResNet-50 up to stage 4 (excludes stage 5)
 ResNet50StagesTo4 = tuple(
@@ -271,6 +276,64 @@ class BottleneckWithFixedBatchNorm(nn.Module):
 
         return out
 
+class BottleneckWithFixedBatchNorm2(nn.Module):
+    def __init__(
+        self,
+        in_channels,
+        bottleneck_channels,
+        out_channels,
+        num_groups=1,
+        stride_in_1x1=True,
+        stride=1,
+    ):
+        super(BottleneckWithFixedBatchNorm2, self).__init__()
+
+        self.downsample = None
+        if stride != 1 or in_channels != out_channels:
+            self.downsample = nn.Sequential(
+                Conv2d(
+                    in_channels, out_channels, kernel_size=1, stride=stride, bias=False
+                ),
+                FrozenBatchNorm2d(out_channels),
+            )
+
+        self.conv1 = Conv2d(
+            in_channels,
+            out_channels,
+            kernel_size=3,
+            stride=stride,
+            padding=1,
+            bias=False,
+        )
+        self.bn1 = FrozenBatchNorm2d(bottleneck_channels)
+        
+        self.conv2 = Conv2d(
+            out_channels,
+            out_channels,
+            kernel_size=3,
+            stride=1,
+            padding=1,
+            bias=False,
+        )
+        self.bn2 = FrozenBatchNorm2d(out_channels)
+
+    def forward(self, x):
+        residual = x
+
+        out = self.conv1(x)
+        out = self.bn1(out)
+        out = F.relu_(out)
+
+        out = self.conv2(out)
+        out = self.bn2(out)
+
+        if self.downsample is not None:
+            residual = self.downsample(x)
+
+        out += residual
+        out = F.relu_(out)
+
+        return out
 
 class StemWithFixedBatchNorm(nn.Module):
     def __init__(self, cfg):
@@ -292,12 +355,16 @@ class StemWithFixedBatchNorm(nn.Module):
 
 
 _TRANSFORMATION_MODULES = Registry({
-    "BottleneckWithFixedBatchNorm": BottleneckWithFixedBatchNorm
+    "BottleneckWithFixedBatchNorm": BottleneckWithFixedBatchNorm,
+    "BottleneckWithFixedBatchNorm2": BottleneckWithFixedBatchNorm2,
 })
 
-_STEM_MODULES = Registry({"StemWithFixedBatchNorm": StemWithFixedBatchNorm})
+_STEM_MODULES = Registry({
+                          "StemWithFixedBatchNorm": StemWithFixedBatchNorm
+})
 
 _STAGE_SPECS = Registry({
+    "R-18-FPN": ResNet18FPNStagesTo5,
     "R-50-C4": ResNet50StagesTo4,
     "R-50-C5": ResNet50StagesTo5,
     "R-50-FPN": ResNet50FPNStagesTo5,

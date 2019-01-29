@@ -1,9 +1,12 @@
 MODEL:
   META_ARCHITECTURE: "GeneralizedRCNN"
-  WEIGHT: "models/resnet50-fpn-mask/R50_initial.pth"
+  WEIGHT: "models/resnet18-fpn-mask/R18_initial.pth"
   BACKBONE:
-    CONV_BODY: "R-50-FPN"
+    CONV_BODY: "R-18-FPN"
     OUT_CHANNELS: 256
+  RESNETS:
+    RES2_OUT_CHANNELS: 64
+    TRANS_FUNC: "BottleneckWithFixedBatchNorm2"
   RPN:
     USE_FPN: True
     ANCHOR_STRIDE: (4, 8, 16, 32, 64)
@@ -34,11 +37,13 @@ DATASETS:
 DATALOADER:
   SIZE_DIVISIBILITY: 32
 SOLVER:
-  BASE_LR: 0.00125
-  WEIGHT_DECAY: 0.0001
-  STEPS: (80000, 100000)
-  MAX_ITER: 120000
-  CHECKPOINT_PERIOD: 2000
+  BASE_LR: 0.0001
+  WEIGHT_DECAY: 0.0005
+  STEPS: (40000, 60000)
+  MAX_ITER: 80000
+  CHECKPOINT_PERIOD: 1000
   IMS_PER_BATCH: 2
 TEST:
   IMS_PER_BATCH: 1
+OUTPUT_DIR: "models/resnet18-fpn-mask-dist-rpn-cpn"
+

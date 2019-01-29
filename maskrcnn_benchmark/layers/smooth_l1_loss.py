@@ -1,7 +1,6 @@
 # Copyright (c) Facebook, Inc. and its affiliates. All Rights Reserved.
 import torch
 
-
 # TODO maybe push this to nn?
 def smooth_l1_loss(input, target, beta=1. / 9, size_average=True):
     """

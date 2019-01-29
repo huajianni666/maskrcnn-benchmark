@@ -15,7 +15,7 @@ def build_resnet_backbone(cfg):
     model = nn.Sequential(OrderedDict([("body", body)]))
     return model
 
-
+@registry.BACKBONES.register("R-18-FPN")
 @registry.BACKBONES.register("R-50-FPN")
 @registry.BACKBONES.register("R-101-FPN")
 def build_resnet_fpn_backbone(cfg):

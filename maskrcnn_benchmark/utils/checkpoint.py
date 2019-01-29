@@ -3,7 +3,8 @@ import logging
 import os
 
 import torch
-
+import pdb
+from maskrcnn_benchmark.utils.model_serialization import load_initial_state_dict
 from maskrcnn_benchmark.utils.model_serialization import load_state_dict
 from maskrcnn_benchmark.utils.c2_model_loading import load_c2_format
 from maskrcnn_benchmark.utils.imports import import_file
@@ -62,13 +63,20 @@ class Checkpointer(object):
         self._load_model(checkpoint)
         if "optimizer" in checkpoint and self.optimizer:
             self.logger.info("Loading optimizer from {}".format(f))
-            self.optimizer.load_state_dict(checkpoint.pop("optimizer"))
+#            self.optimizer.load_state_dict(checkpoint.pop("optimizer"))
         if "scheduler" in checkpoint and self.scheduler:
             self.logger.info("Loading scheduler from {}".format(f))
-            self.scheduler.load_state_dict(checkpoint.pop("scheduler"))
+#            self.scheduler.load_state_dict(checkpoint.pop("scheduler"))
 
         # return any further checkpoint data
         return checkpoint
+
+    def load_initial(self, tf=None, sf=None):
+        self.logger.info("Loading initial weights from {},{}".format(tf,sf))
+        teacher_checkpoint,student_checkpoint = self._load_initial_file(tf,sf)
+        self._load_initial_model(teacher_checkpoint, student_checkpoint)
+        return student_checkpoint
+
 
     def has_checkpoint(self):
         save_file = os.path.join(self.save_dir, "last_checkpoint")
@@ -97,11 +105,14 @@ class Checkpointer(object):
     def _load_model(self, checkpoint):
         load_state_dict(self.model, checkpoint.pop("model"))
 
-
+    def _load_initial_model(self, teacher_checkpoint, student_checkpoint):
+        load_initial_state_dict(self.model, teacher_checkpoint.pop("model"), student_checkpoint.pop("model"))
+    
 class DetectronCheckpointer(Checkpointer):
     def __init__(
         self,
-        cfg,
+        t_cfg,
+        s_cfg,
         model,
         optimizer=None,
         scheduler=None,
@@ -112,7 +123,8 @@ class DetectronCheckpointer(Checkpointer):
         super(DetectronCheckpointer, self).__init__(
             model, optimizer, scheduler, save_dir, save_to_disk, logger
         )
-        self.cfg = cfg.clone()
+        self.t_cfg = t_cfg.clone()
+        self.s_cfg = s_cfg.clone()
 
     def _load_file(self, f):
         # catalog lookup
@@ -137,3 +149,13 @@ class DetectronCheckpointer(Checkpointer):
         if "model" not in loaded:
             loaded = dict(model=loaded)
         return loaded
+
+    def _load_initial_file(self, tf, sf):
+        # load native detectron.pytorch checkpoint
+        teacher_loaded = super(DetectronCheckpointer, self)._load_file(tf)
+        student_loaded = super(DetectronCheckpointer, self)._load_file(sf) 
+        if "model" not in teacher_loaded:
+            teacher_loaded = dict(model=teacher_loaded)
+        if "model" not in student_loaded:
+            student_loaded = dict(model=student_loaded)
+        return teacher_loaded,student_loaded

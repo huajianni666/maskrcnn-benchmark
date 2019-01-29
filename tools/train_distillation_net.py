@@ -9,7 +9,6 @@ from maskrcnn_benchmark.utils.env import setup_environment  # noqa F401 isort:sk
 
 import argparse
 import os
-
 import torch
 from maskrcnn_benchmark.config import cfg
 from maskrcnn_benchmark.data import make_data_loader
@@ -24,15 +23,14 @@ from maskrcnn_benchmark.utils.comm import synchronize, get_rank
 from maskrcnn_benchmark.utils.imports import import_file
 from maskrcnn_benchmark.utils.logger import setup_logger
 from maskrcnn_benchmark.utils.miscellaneous import mkdir
+import pdb
 
-
-def train(cfg, local_rank, distributed):
-    model = build_detection_model(cfg)
-    device = torch.device(cfg.MODEL.DEVICE)
+def train(teacher_cfg, student_cfg, local_rank, distributed):
+    model = build_detection_model(teacher_cfg,student_cfg)
+    device = torch.device(student_cfg.MODEL.DEVICE)
     model.to(device)
-
-    optimizer = make_optimizer(cfg, model)
-    scheduler = make_lr_scheduler(cfg, optimizer)
+    optimizer = make_optimizer(student_cfg, model)
+    scheduler = make_lr_scheduler(student_cfg, optimizer)
 
     if distributed:
         model = torch.nn.parallel.DistributedDataParallel(
@@ -44,23 +42,22 @@ def train(cfg, local_rank, distributed):
     arguments = {}
     arguments["iteration"] = 0
 
-    output_dir = cfg.OUTPUT_DIR
+    output_dir = student_cfg.OUTPUT_DIR
 
     save_to_disk = get_rank() == 0
-    checkpointer = DetectronCheckpointer(
-        cfg, model, optimizer, scheduler, output_dir, save_to_disk
-    )
-    extra_checkpoint_data = checkpointer.load(cfg.MODEL.WEIGHT)
-    arguments.update(extra_checkpoint_data)
 
+    checkpointer = DetectronCheckpointer(teacher_cfg, student_cfg, model, optimizer, scheduler, output_dir, save_to_disk)
+    extra_checkpoint_data = checkpointer.load_initial(teacher_cfg.MODEL.WEIGHT,student_cfg.MODEL.WEIGHT)
+    arguments.update(extra_checkpoint_data)
+    arguments["iteration"] = 0
     data_loader = make_data_loader(
-        cfg,
+        student_cfg,
         is_train=True,
         is_distributed=distributed,
         start_iter=arguments["iteration"],
     )
 
-    checkpoint_period = cfg.SOLVER.CHECKPOINT_PERIOD
+    checkpoint_period = student_cfg.SOLVER.CHECKPOINT_PERIOD
 
     do_train(
         model,
@@ -109,7 +106,14 @@ def test(cfg, model, distributed):
 def main():
     parser = argparse.ArgumentParser(description="PyTorch Object Detection Training")
     parser.add_argument(
-        "--config-file",
+        "--teacher-config-file",
+        default="",
+        metavar="FILE",
+        help="path to config file",
+        type=str,
+    )
+    parser.add_argument(
+        "--student-config-file",
         default="",
         metavar="FILE",
         help="path to config file",
@@ -133,18 +137,20 @@ def main():
 
     num_gpus = int(os.environ["WORLD_SIZE"]) if "WORLD_SIZE" in os.environ else 1
     args.distributed = num_gpus > 1
-
+    torch.cuda.set_device(args.local_rank)
     if args.distributed:
         torch.cuda.set_device(args.local_rank)
         torch.distributed.init_process_group(
             backend="nccl", init_method="env://"
         )
-
-    cfg.merge_from_file(args.config_file)
-    cfg.merge_from_list(args.opts)
-    cfg.freeze()
-
-    output_dir = cfg.OUTPUT_DIR
+    teacher_cfg=cfg.clone()
+    student_cfg=cfg.clone()
+    teacher_cfg.merge_from_file(args.teacher_config_file)
+    teacher_cfg.freeze()
+    student_cfg.merge_from_file(args.student_config_file)
+    student_cfg.freeze()
+   
+    output_dir = student_cfg.OUTPUT_DIR
     if output_dir:
         mkdir(output_dir)
 
@@ -155,16 +161,23 @@ def main():
     logger.info("Collecting env info (might take some time)")
     logger.info("\n" + collect_env_info())
 
-    logger.info("Loaded configuration file {}".format(args.config_file))
-    with open(args.config_file, "r") as cf:
+    logger.info("Loaded teacher configuration file {}".format(args.teacher_config_file))
+    with open(args.teacher_config_file, "r") as cf:
         config_str = "\n" + cf.read()
         logger.info(config_str)
-    logger.info("Running with config:\n{}".format(cfg))
+    logger.info("Running with teacher config:\n{}".format(teacher_cfg))
 
-    model = train(cfg, args.local_rank, args.distributed)
+    logger.info("Loaded student configuration file {}".format(args.student_config_file))
+    with open(args.student_config_file, "r") as cf:
+        config_str = "\n" + cf.read()
+        logger.info(config_str)
+    logger.info("Running with student config:\n{}".format(student_cfg))
+
+    
+    distillation_model = train(teacher_cfg,student_cfg, args.local_rank, args.distributed)
 
     if not args.skip_test:
-        test(cfg, model, args.distributed)
+        test(student_cfg, distillation_model, args.distributed)
 
 
 if __name__ == "__main__":
