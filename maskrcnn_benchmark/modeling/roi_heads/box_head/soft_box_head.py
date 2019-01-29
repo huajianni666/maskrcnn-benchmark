@@ -15,9 +15,9 @@ class SoftROIBoxHead(torch.nn.Module):
 
     def __init__(self, teacher_cfg, student_cfg):
         super(SoftROIBoxHead, self).__init__()
-        self.student_feature_extractor = make_roi_box_feature_extractor(student_cfg)
+        self.feature_extractor = make_roi_box_feature_extractor(student_cfg)
         self.teacher_feature_extractor = make_roi_box_feature_extractor(teacher_cfg)
-        self.student_predictor = make_roi_box_predictor(student_cfg)
+        self.predictor = make_roi_box_predictor(student_cfg)
         self.teacher_predictor = make_roi_box_predictor(teacher_cfg)
         self.post_processor = make_roi_box_post_processor(student_cfg)
         self.loss_evaluator = make_soft_roi_box_loss_evaluator(student_cfg)
@@ -47,11 +47,11 @@ class SoftROIBoxHead(torch.nn.Module):
         # feature_extractor generally corresponds to the pooler + heads
         with torch.no_grad():
             tx = self.teacher_feature_extractor(teacher_features, student_proposals)
-        sx = self.student_feature_extractor(student_features, student_proposals)
+        sx = self.feature_extractor(student_features, student_proposals)
         # final classifier that converts the features into predictions
         with torch.no_grad():
             teacher_class_logits, teacher_box_regression = self.teacher_predictor(tx)
-        student_class_logits, student_box_regression = self.student_predictor(sx)
+        student_class_logits, student_box_regression = self.predictor(sx)
 
         if not self.training:
             result = self.post_processor((student_class_logits, student_box_regression), student_proposals)
