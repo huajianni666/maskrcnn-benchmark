@@ -72,6 +72,13 @@ class Checkpointer(object):
         return checkpoint
 
     def load_initial(self, tf=None, sf=None):
+        if self.has_checkpoint():
+            # override argument with existing checkpoint
+            f = self.get_checkpoint_file()
+            self.logger.info("Loading checkpoint from {}".format(f))
+            checkpoint = self._load_file(f)
+            self._load_model(checkpoint)
+            return checkpoint
         self.logger.info("Loading initial weights from {},{}".format(tf,sf))
         teacher_checkpoint,student_checkpoint = self._load_initial_file(tf,sf)
         self._load_initial_model(teacher_checkpoint, student_checkpoint)

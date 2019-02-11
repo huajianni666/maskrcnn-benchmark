@@ -139,10 +139,15 @@ class FastRCNNSoftLossComputation(object):
         )
 
         hard_classification_loss = F.cross_entropy(student_class_logits, labels)
-        class_weight = 0.7
-        temperature_distillation = 1
-        soft_classification_loss = temperature_distillation**2 * nn.KLDivLoss()(F.log_softmax(student_class_logits/temperature_distillation,dim=1), F.softmax(teacher_class_logits/temperature_distillation,dim=1))
+        class_weight = 0.5
+        pstudentlog = F.log_softmax(student_class_logits,dim=1)
+        pteacher = F.softmax(teacher_class_logits,dim=1)
+        soft_classification_loss = - torch.sum(pteacher.mul(pstudentlog))/student_class_logits.shape[0]
+        #temperature_distillation = 1
+        #soft_classification_loss = temperature_distillation**2 * nn.KLDivLoss()(F.log_softmax(student_class_logits/temperature_distillation,dim=1), F.softmax(teacher_class_logits/temperature_distillation,dim=1))
         classification_loss = class_weight * hard_classification_loss + (1 - class_weight) * soft_classification_loss
+        #classification_loss = hard_classification_loss
+        
         # get indices that correspond to the regression targets for
         # the corresponding ground truth labels, to be used with
         # advanced indexing
@@ -158,7 +163,7 @@ class FastRCNNSoftLossComputation(object):
         )
         hard_box_loss = hard_box_loss / labels.numel()
         
-        regression_weight = 0.7
+        regression_weight = 0.5
         soft_box_loss = smooth_l1_loss(
             student_box_regression[sampled_pos_inds_subset[:, None], map_inds],
             teacher_box_regression[sampled_pos_inds_subset[:, None], map_inds],
@@ -167,6 +172,7 @@ class FastRCNNSoftLossComputation(object):
         )
         soft_box_loss = soft_box_loss / labels.numel()
         box_loss = regression_weight * hard_box_loss + (1 - regression_weight) * soft_box_loss
+        #box_loss = hard_box_loss
         return classification_loss, box_loss
 
 

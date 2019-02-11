@@ -127,7 +127,6 @@ def align_and_update_state_dicts(model_state_dict, loaded_state_dict):
     for idx_new, idx_old in enumerate(idxs.tolist()):
         if idx_old == -1:
             continue
-        pdb.set_trace()
         key = current_keys[idx_new]
         key_old = loaded_keys[idx_old]
         model_state_dict[key] = loaded_state_dict[key_old]
@@ -176,7 +175,7 @@ def load_state_dict(model, loaded_state_dict):
     # if the state_dict comes from a model that was wrapped in a
     # DataParallel or DistributedDataParallel during serialization,
     # remove the "module" prefix before performing the matching
-    loaded_state_dict = strip_prefix_if_present(loaded_state_dict, prefix="module.")
+    #loaded_state_dict = strip_prefix_if_present(loaded_state_dict, prefix="module.")
     align_and_update_state_dicts(model_state_dict, loaded_state_dict)
 
     # use strict loading
@@ -187,10 +186,8 @@ def load_initial_state_dict(model, teacher_loaded_state_dict, student_loaded_sta
     # if the state_dict comes from a model that was wrapped in a
     # DataParallel or DistributedDataParallel during serialization,
     # remove the "module" prefix before performing the matching
-    pdb.set_trace()
     teacher_loaded_state_dict = replace_prefix_if_present(teacher_loaded_state_dict, prefix="module.", replace="teacher_")
     student_loaded_state_dict = replace_prefix_if_present(student_loaded_state_dict, prefix="module.", replace="student_")
-    pdb.set_trace()
     align_and_update_initial_state_dicts(model_state_dict, teacher_loaded_state_dict, student_loaded_state_dict)
     # use strict loading
     model.load_state_dict(model_state_dict)

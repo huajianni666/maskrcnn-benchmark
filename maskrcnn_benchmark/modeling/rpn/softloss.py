@@ -137,7 +137,6 @@ class RPNsoftLossComputation(object):
 
         labels = torch.cat(labels, dim=0)
         regression_targets = torch.cat(regression_targets, dim=0)
-        
         #soft_box_loss = bounded_regression_loss(
         #    teacher_box_regression[sampled_pos_inds],
         #    student_box_regression[sampled_pos_inds],
@@ -148,15 +147,14 @@ class RPNsoftLossComputation(object):
         soft_box_loss = smooth_l1_loss(
             student_box_regression[sampled_pos_inds],
             teacher_box_regression[sampled_pos_inds],
-            beta=1.0 / 9,
+            beta=1,
             size_average=False,
-        ) / (sampled_inds.numel())        
-#        T = 3        
-#        teacher_objectness_label = (teacher_objectness[sampled_inds]/T).sigmoid()
-#        student_objectness_label = (student_objectness[sampled_inds]/T).sigmoid()
-#        soft_objectness_loss = T**2 * nn.KLDivLoss()(torch.log(student_objectness_label), teacher_objectness_label)
+        ) / (sampled_pos_inds.numel())        
+        
+        teacher_objectness_label = (teacher_objectness[sampled_inds]).sigmoid()
+#       student_objectness_label = (student_objectness[sampled_inds]).sigmoid()
+#       soft_objectness_loss = T**2 * nn.KLDivLoss()(torch.log(student_objectness_label), teacher_objectness_label)
  
-        teacher_objectness_label = teacher_objectness[sampled_inds].sigmoid()
         soft_objectness_loss = F.binary_cross_entropy_with_logits(
             student_objectness[sampled_inds], teacher_objectness_label
         )
