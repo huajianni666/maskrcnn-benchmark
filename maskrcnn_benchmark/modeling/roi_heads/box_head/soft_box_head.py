@@ -42,15 +42,10 @@ class SoftROIBoxHead(torch.nn.Module):
             # positive / negative ratio
             with torch.no_grad():
                 student_proposals = self.loss_evaluator.subsample(student_proposals, targets)
-                
-        # extract features that will be fed to the final classifier. The
-        # feature_extractor generally corresponds to the pooler + heads
-        with torch.no_grad():
-            tx = self.teacher_feature_extractor(teacher_features, student_proposals)
+                tx = self.teacher_feature_extractor(teacher_features, student_proposals)
+                teacher_class_logits, teacher_box_regression = self.teacher_predictor(tx)
         sx = self.feature_extractor(student_features, student_proposals)
         # final classifier that converts the features into predictions
-        with torch.no_grad():
-            teacher_class_logits, teacher_box_regression = self.teacher_predictor(tx)
         student_class_logits, student_box_regression = self.predictor(sx)
 
         if not self.training:

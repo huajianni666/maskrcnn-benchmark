@@ -95,11 +95,9 @@ class RPNModule(torch.nn.Module):
         """
         objectness, rpn_box_regression = self.head(features)
         anchors = self.anchor_generator(images, features)
-
-        if train:
-            return self._forward_train(anchors, objectness, rpn_box_regression, targets)
-        else:
+        if not train or not self.training :
             return self._forward_test(anchors, objectness, rpn_box_regression)
+        return self._forward_train(anchors, objectness, rpn_box_regression, targets)
 
     def _forward_train(self, anchors, objectness, rpn_box_regression, targets):
         if self.cfg.MODEL.RPN_ONLY:

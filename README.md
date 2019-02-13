@@ -14,23 +14,6 @@ creating detection and segmentation models using PyTorch 1.0.
 - **CPU support for inference:** runs on CPU in inference time. See our [webcam demo](demo) for an example
 - Provides pre-trained models for almost all reference Mask R-CNN and Faster R-CNN configurations with 1x schedule.
 
-## Webcam and Jupyter notebook demo
-
-We provide a simple webcam demo that illustrates how you can use `maskrcnn_benchmark` for inference:
-```bash
-cd demo
-# by default, it runs on the GPU
-# for best results, use min-image-size 800
-python webcam.py --min-image-size 800
-# can also run it on the CPU
-python webcam.py --min-image-size 300 MODEL.DEVICE cpu
-# or change the model that you want to use
-python webcam.py --config-file ../configs/caffe2/e2e_mask_rcnn_R_101_FPN_1x_caffe2.yaml --min-image-size 300 MODEL.DEVICE cpu
-# in order to see the probability heatmaps, pass --show-mask-heatmaps
-python webcam.py --min-image-size 300 --show-mask-heatmaps MODEL.DEVICE cpu
-```
-
-A notebook with the demo can be found in [demo/Mask_R-CNN_demo.ipynb](demo/Mask_R-CNN_demo.ipynb).
 
 ## Installation
 
@@ -94,31 +77,11 @@ You can also create a new `paths_catalog.py` file which implements the same two 
 and pass it as a config argument `PATHS_CATALOG` during training.
 
 ### Single GPU training
-
-Most of the configuration files that we provide assume that we are running on 8 GPUs.
-In order to be able to run it on fewer GPUs, there are a few possibilities:
-
-**1. Run the following without modifications**
-
+[Mask R-CNN R-101 FPN model](http://pbhx6ce5l.bkt.clouddn.com/resnet101-fpn-mask.zip),[Mask R-CNN R-50 FPN model](http://pbhx6ce5l.bkt.clouddn.com/resnet50-fpn-mask.zip),[Mask R-CNN R-18 FPN model](http://pbhx6ce5l.bkt.clouddn.com/resnet18-fpn-mask.zip)
+Here is an example for Mask R-CNN R-50 FPN distillation Mask R-CNN R-18 FPN with the 1x schedule:
 ```bash
-python /path_to_maskrcnn_benchmark/tools/train_net.py --config-file "/path/to/config/file.yaml"
-```
-This should work out of the box and is very similar to what we should do for multi-GPU training.
-But the drawback is that it will use much more GPU memory. The reason is that we set in the
-configuration files a global batch size that is divided over the number of GPUs. So if we only
-have a single GPU, this means that the batch size for that GPU will be 8x larger, which might lead
-to out-of-memory errors.
+python tools/train_distillation_net.py --local_rank 0 --teacher-config-file configs/e2e_mask_rcnn_R_50_FPN_1x.yaml --student-config-file configs/e2e_mask_rcnn_R_18_FPN_1x.yaml
 
-If you have a lot of memory available, this is the easiest solution.
-
-**2. Modify the cfg parameters**
-
-If you experience out-of-memory errors, you can reduce the global batch size. But this means that
-you'll also need to change the learning rate, the number of iterations and the learning rate schedule.
-
-Here is an example for Mask R-CNN R-50 FPN with the 1x schedule:
-```bash
-python tools/train_net.py --config-file "configs/e2e_mask_rcnn_R_50_FPN_1x.yaml" SOLVER.IMS_PER_BATCH 2 SOLVER.BASE_LR 0.0025 SOLVER.MAX_ITER 720000 SOLVER.STEPS "(480000, 640000)" TEST.IMS_PER_BATCH 1
 ```
 This follows the [scheduling rules from Detectron.](https://github.com/facebookresearch/Detectron/blob/master/configs/getting_started/tutorial_1gpu_e2e_faster_rcnn_R-50-FPN.yaml#L14-L30)
 Note that we have multiplied the number of iterations by 8x (as well as the learning rate schedules),
@@ -128,16 +91,8 @@ We also changed the batch size during testing, but that is generally not necessa
 requires much less memory than training.
 
 
-### Multi-GPU training
-We use internally `torch.distributed.launch` in order to launch
-multi-gpu training. This utility function from PyTorch spawns as many
-Python processes as the number of GPUs we want to use, and each Python
-process will only use a single GPU.
+### No support Multi-GPU training because the teacher model has been setting "no_grad", pytorch bug
 
-```bash
-export NGPUS=8
-python -m torch.distributed.launch --nproc_per_node=$NGPUS /path_to_maskrcnn_benchmark/tools/train_net.py --config-file "path/to/config/file.yaml"
-```
 
 ## Abstractions
 For more information on some of the main abstractions in our implementation, see [ABSTRACTIONS.md](ABSTRACTIONS.md).
