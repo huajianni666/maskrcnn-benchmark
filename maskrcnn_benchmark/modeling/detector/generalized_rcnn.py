@@ -37,6 +37,16 @@ class GeneralizedRCNN(nn.Module):
         soft_loss_evaluator = make_soft_rpn_loss_evaluator(student_cfg, soft_rpn_box_coder)
         self.soft_loss_evaluator = soft_loss_evaluator
         
+        self.attention_blocks = []
+        fpn_channels = student_cfg.MODEL.BACKBONE.OUT_CHANNELS
+        for idx in range(len(student_cfg.MODEL.RPN.ANCHOR_STRIDE)):
+            attention_name = "fpn_attention{}".format(idx)      
+            attention_module = nn.Conv2d(fpn_channels, 1, kernel_size=1, stride=1, bias = False)
+            # Caffe2 implementation uses XavierFill, which in fact
+            # corresponds to kaiming_uniform_ in PyTorch
+            nn.init.kaiming_uniform_(attention_module.weight, a=1)
+            self.add_module(attention_name, attention_module)
+            self.attention_blocks.append(attention_name)
         """
         nn.init.normal_(self.cls_score.weight, mean=0, std=0.01)
         nn.init.constant_(self.cls_score.bias, 0)
@@ -73,12 +83,32 @@ class GeneralizedRCNN(nn.Module):
         """
            backbone distillation
         """
+        #student_norm = torch.nn.functional.normalize(student_feature.pow(2).mean(1).view(student_feature.size(0), -1))
+        #teacher_norm = torch.nn.functional.normalize(teacher_feature.pow(2).mean(1).view(teacher_feature.size(0), -1))
+        #single_stage_feature_loss = (student_norm - teacher_norm).pow(2).mean()
         if self.training:
             backbone_loss = []
-            for teacher_feature,student_feature in zip(teacher_features,student_features):
+            for teacher_feature,student_feature,attention_block in zip(teacher_features,student_features,self.attention_blocks):
+                at_student_feature = getattr(self, attention_block)(student_feature)
+                with torch.no_grad():
+                    at_teacher_feature = getattr(self, attention_block)(teacher_feature)
+                N, A, H, W = at_teacher_feature.shape
+                single_stage_feature_loss = 0
+                for i in range(N):
+                    max_teacher_feature = at_teacher_feature[i,:,:,:]
+                    teacher_feature_view = max_teacher_feature.view(max_teacher_feature.shape[2] * max_teacher_feature.shape[1])
+                    pro_teacher_feature = nn.functional.normalize(teacher_feature_view,dim=0)
+                    max_student_feature = at_student_feature[i,:,:,:]
+                    student_feature_view = max_student_feature.view(max_student_feature.shape[2] * max_student_feature.shape[1])
+                    pro_student_feature = nn.functional.normalize(student_feature_view,dim=0)
+                    single_img_feature_loss = torch.norm(pro_student_feature - pro_teacher_feature, p = 2)
+                    single_stage_feature_loss += single_img_feature_loss
+                backbone_loss.append(single_stage_feature_loss / N)
+                """bbox 0.302
                 N, A, H, W = teacher_feature.shape
                 single_stage_feature_loss = 0
                 for i in range(N):
+                    mm = torch.nn.Softmax2d()
                     max_teacher_feature = torch.max(teacher_feature[i,:,:,:],dim = 0)[0]
                     max_teacher_feature_view = max_teacher_feature.view(max_teacher_feature.shape[0] * max_teacher_feature.shape[1])
                     pro_teacher_feature = nn.functional.softmax(max_teacher_feature_view)
@@ -88,19 +118,18 @@ class GeneralizedRCNN(nn.Module):
                     single_img_feature_loss = torch.norm(pro_student_feature - pro_teacher_feature, p = 2)
                     single_stage_feature_loss += single_img_feature_loss
                 backbone_loss.append(single_stage_feature_loss / N)
+                """
             backbone_fpn_loss = 0
             for single_fpn_loss in backbone_loss:
                 backbone_fpn_loss = backbone_fpn_loss + single_fpn_loss
-            backbone_fpn_loss = {"backbone_fpn_loss": backbone_fpn_loss/len(backbone_loss)}
+            backbone_fpn_loss = {"backbone_fpn_loss": backbone_fpn_loss}#/len(backbone_loss)}
        
         student_proposals, student_anchors, student_objectness, student_rpn_box_regression, hard_proposal_losses = self.student_rpn(images, student_features, targets)
         ##rpn distilation no used
         if self.training:
-            soft_loss_objectness = 1
-            soft_loss_rpn_box_reg = 1
-            #soft_loss_objectness, soft_loss_rpn_box_reg = self.soft_loss_evaluator(teacher_anchors, student_anchors, teacher_objectness, student_objectness, teacher_rpn_box_regression, student_rpn_box_regression, targets)
-            alpha = 1
-            beta = 1
+            soft_loss_objectness, soft_loss_rpn_box_reg = self.soft_loss_evaluator(teacher_anchors, student_anchors, teacher_objectness, student_objectness, teacher_rpn_box_regression, student_rpn_box_regression, targets)
+            alpha = 0.5
+            beta = 0.5
             #print('hard_loss_objectness {},soft_loss_objectness {},hard_loss_rpn_box_reg {}, soft_loss_rpn_box_reg {}'.format(hard_proposal_losses["loss_objectness"],soft_loss_objectness,hard_proposal_losses["loss_rpn_box_reg"],soft_loss_rpn_box_reg))
             proposal_losses= {
                "hard_soft_loss_objectness": alpha * hard_proposal_losses["loss_objectness"] + (1-alpha) * soft_loss_objectness,
